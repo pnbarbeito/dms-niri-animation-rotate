@@ -11,7 +11,11 @@ PluginComponent {
     id: root
 
     // ── Settings ────────────────────────────────────────────────
-    property string socketPath: pluginData.socketPath || "~/.config/niri/niri-animation-rotate/control.sock"
+    property string pluginHome: {
+        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
+        home + "/.config/DankMaterialShell/plugins/animationRotate";
+    }
+    property string socketPath: pluginData.socketPath || pluginHome + "/control.sock"
     property int refreshIntervalMs: pluginData.refreshIntervalMs || 2000
 
     // ── State ───────────────────────────────────────────────────
@@ -22,15 +26,6 @@ PluginComponent {
     property bool ignoreWindowOpened: pluginData.ignoreWindowOpened === "true"
     property bool ignoreWindowClosed: pluginData.ignoreWindowClosed === "true"
     property bool showInBar: pluginData.showInBar !== "false"
-
-    // ── Daemon lifecycle ──────────────────────────────────────
-    property string pluginHome: {
-        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
-        home + "/.config/DankMaterialShell/plugins/animationRotate";
-    }
-    property string daemonBinary: pluginHome + "/bin/niri-animation-rotate"
-    property string daemonAnimationsSrc: pluginHome + "/animations"
-    property string daemonConfigDir: expandPath("~/.config/niri/niri-animation-rotate")
     property bool daemonRunning: false
 
     // ── Process component for sending commands ──────────────────
@@ -76,20 +71,37 @@ PluginComponent {
         }
 
         function launchDaemon() {
-            var bin = root.daemonBinary;
-            var animSrc = root.daemonAnimationsSrc;
-            var cfgDir = root.daemonConfigDir;
-            var animDst = cfgDir + "/animations";
+            var bin = root.pluginHome + "/bin/niri-animation-rotate";
+            var animDir = root.pluginHome + "/animations";
+            var configFile = root.pluginHome + "/config.kdl";
             var sock = expandPath(root.socketPath);
-            var cfg = cfgDir + "/config.kdl";
+            var niriDmsDir = expandPath("~/.config/niri/dms");
+            var animTarget = niriDmsDir + "/animation.kdl";
+            var niriConfig = expandPath("~/.config/niri/config.kdl");
+            var includeLine = 'include "dms/animation.kdl"';
 
-            var setupCmd = ["sh", "-c", "chmod +x '" + bin + "' && " + "mkdir -p '" + cfgDir + "' '" + animDst + "' && " + "cp -n '" + animSrc + "/*.kdl' '" + animDst + "/' 2>/dev/null; " + "test -f '" + cfg + "' || echo 'auto-rotation true' > '" + cfg + "'; " + "'" + bin + "' --animation-dir='" + animDst + "' --control-socket='" + sock + "' &"];
+            var setupCmd = [
+                "sh", "-c",
+                // Ensure binary is executable
+                "chmod +x '" + bin + "' && " +
+                // Create the DMS output dir inside niri config
+                "mkdir -p '" + niriDmsDir + "' && " +
+                // Create a minimal config file if one doesn't exist
+                "test -f '" + configFile + "' || printf '// niri-animation-rotate config\\nanimation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
+                // Add include line to niri config if not already there
+                "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
+                // Launch daemon
+                "'" + bin + "'" +
+                " --config='" + configFile + "'" +
+                " --animation-dir='" + animDir + "'" +
+                " --animation-target='" + animTarget + "'" +
+                " --control-socket='" + sock + "'" +
+                " &"
+            ];
 
             var proc = cmdProcComponent.createObject(root, {
                 "command": setupCmd,
-                "_callback": function (result) {
-                    retryConnect(0);
-                },
+                "_callback": function(result) { retryConnect(0); },
                 "running": true
             });
 
@@ -113,8 +125,8 @@ PluginComponent {
 
         function restartDaemon() {
             var proc = cmdProcComponent.createObject(root, {
-                "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1"],
-                "_callback": function () {
+                "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1; rm -f '" + expandPath(root.socketPath) + "'"],
+                "_callback": function() {
                     root.daemonRunning = false;
                     launchDaemon();
                 },

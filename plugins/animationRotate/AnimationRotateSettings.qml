@@ -30,9 +30,9 @@ PluginSettings {
     StringSetting {
         settingKey: "socketPath"
         label: "Control Socket Path"
-        description: "Path to niri-animation-rotate Unix control socket."
-        placeholder: "~/.config/niri/niri-animation-rotate/control.sock"
-        defaultValue: "~/.config/niri/niri-animation-rotate/control.sock"
+        description: "Path to the daemon's Unix control socket. By default, lives inside the plugin directory."
+        placeholder: "<pluginDir>/control.sock"
+        defaultValue: ""
     }
 
     // ── Refresh interval ────────────────────────────────────────
