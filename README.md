@@ -56,7 +56,7 @@ Then activate the plugin from DMS Settings → Plugins → Local.
 
 ## Configuration
 
-Configure socket path and refresh interval from the plugin settings page (right-click the widget → Settings). All other daemon settings are managed through the widget's UI or via `nrctl` from the terminal.
+Configure socket path and refresh interval from the plugin settings page (right-click the widget → Settings). All other daemon settings are managed through the widget's UI. For terminal control, use `nc` pointing to the plugin socket:
 
 ## Screenshots
 
