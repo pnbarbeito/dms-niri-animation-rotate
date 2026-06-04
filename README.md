@@ -79,6 +79,26 @@ The exact socket path is shown in the plugin settings page.
 
 MIT — see [LICENSE](./LICENSE).
 
+## Acknowledgments
+
+The 49 animation presets bundled with this plugin are **not my own work**. They were created by talented authors and collected from the community.
+
+### Authors and sources
+
+- **[chaoscatsofficial@gmail.com](mailto:chaoscatsofficial@gmail.com)** — 16 animations (bloom, burn-ashes, burn, burn-multicolor, explode, fold-window, glitch_00, glitch-cyberpunk, glitch, halftone, pixelate, pop-drop, ribbons, roll-drop, swipe-window, unravel)  
+  Source: [XansiVA/nirimation](https://github.com/XansiVA/nirimation)
+
+- **[Justin Garza](mailto:JGarza9788@gmail.com)** — 7 animations (blur, chromatic_edge, energize_b_niri, glide, incinerate, prism_fold, tv_crt)  
+  Source: [jgarza9788/niri-animation-collection](https://github.com/jgarza9788/niri-animation-collection)
+
+- **[Joe Hsu](mailto:jhsu.x1@gmail.com)** — 2 animations (dither-glitch, pixel-sort)  
+  Source: [jgarza9788/niri-animation-collection](https://github.com/jgarza9788/niri-animation-collection)
+
+- **liixini** ([github.com/liixini](https://github.com/liixini)) — 24 animations (circle, crosshatch, crosswarp, directiona-wipe, directional, disolve, fade, flyeye, glass-warp, glitch_01, heat-melt, ink-splash, inkwell-drop, morph, perlin, pixelfade-wave, plasma-flow, polar-function, polka-dots-curtain, randomsquares, smoke, snap, voronoi-shatter, wave-warp)  
+  Sources: [liixini/shaders](https://github.com/liixini/shaders)
+
+Thank you all for sharing your incredible work with the Niri community!
+
 ## Related
 
 - [niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) — the Rust daemon source code and standalone releases.
