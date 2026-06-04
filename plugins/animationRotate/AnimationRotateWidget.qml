@@ -23,6 +23,16 @@ PluginComponent {
     property bool ignoreWindowClosed: pluginData.ignoreWindowClosed === "true"
     property bool showInBar: pluginData.showInBar !== "false"
 
+    // ── Daemon lifecycle ──────────────────────────────────────
+    property string pluginHome: {
+        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
+        home + "/.config/DankMaterialShell/plugins/animationRotate";
+    }
+    property string daemonBinary: pluginHome + "/bin/niri-animation-rotate"
+    property string daemonAnimationsSrc: pluginHome + "/animations"
+    property string daemonConfigDir: expandPath("~/.config/niri/niri-animation-rotate")
+    property bool daemonRunning: false
+
     // ── Process component for sending commands ──────────────────
     Component {
         id: cmdProcComponent
@@ -41,6 +51,74 @@ PluginComponent {
                 if (cb) cb(result);
                 Qt.callLater(function() { cmdProcess.destroy(); });
             }
+        }
+    }
+
+    // ── Daemon Manager (auto-start + health check) ──────────
+    QtObject {
+        id: daemon
+
+        function checkAndStart() {
+            // Try to reach the daemon via the socket
+            root.sendCommand("current", function(resp) {
+                if (resp !== "" && resp !== "ERR") {
+                    root.daemonRunning = true;
+                    root.fetchCurrent();
+                    root.fetchList();
+                    root.fetchStatus();
+                } else {
+                    launchDaemon();
+                }
+            });
+        }
+
+        function launchDaemon() {
+            var bin = root.daemonBinary;
+            var animSrc = root.daemonAnimationsSrc;
+            var cfgDir = root.daemonConfigDir;
+            var animDst = cfgDir + "/animations";
+            var sock = expandPath(root.socketPath);
+            var cfg = cfgDir + "/config.kdl";
+
+            var setupCmd = [
+                "sh", "-c",
+                "chmod +x '" + bin + "' && " +
+                "mkdir -p '" + cfgDir + "' '" + animDst + "' && " +
+                "cp -n '" + animSrc + "/*.kdl' '" + animDst + "/' 2>/dev/null; " +
+                "test -f '" + cfg + "' || echo 'auto-rotation true' > '" + cfg + "'; " +
+                "'" + bin + "' --animation-dir='" + animDst + "' --control-socket='" + sock + "' &"
+            ];
+
+            var proc = cmdProcComponent.createObject(root, {
+                "command": setupCmd,
+                "_callback": function(result) { retryConnect(0); },
+                "running": true
+            });
+
+            function retryConnect(attempt) {
+                if (attempt >= 10) return; // Give up after ~5s
+                root.sendCommand("current", function(resp) {
+                    if (resp !== "" && resp !== "ERR") {
+                        root.daemonRunning = true;
+                        root.fetchCurrent();
+                        root.fetchList();
+                        root.fetchStatus();
+                    } else {
+                        setTimeout(function() { retryConnect(attempt + 1); }, 500);
+                    }
+                });
+            }
+        }
+
+        function restartDaemon() {
+            var proc = cmdProcComponent.createObject(root, {
+                "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1"],
+                "_callback": function() {
+                    root.daemonRunning = false;
+                    launchDaemon();
+                },
+                "running": true
+            });
         }
     }
 
@@ -137,9 +215,7 @@ PluginComponent {
     }
 
     Component.onCompleted: {
-        root.fetchCurrent();
-        root.fetchList();
-        root.fetchStatus();
+        daemon.checkAndStart();
     }
 
     // ── Control Center Widget Properties ─────────────────────
@@ -219,11 +295,26 @@ PluginComponent {
                     spacing: Theme.spacingM
 
                     // ── Header ────────────────────────────────
-                    StyledText {
-                        text: "Animation Rotate"
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.weight: Font.Medium
-                        color: Theme.surfaceText
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        StyledText {
+                            text: "Animation Rotate"
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Font.Medium
+                            color: Theme.surfaceText
+                        }
+                        Rectangle {
+                            width: 12; height: 12; radius: 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: root.daemonRunning ? "#4CAF50" : "#F44336"
+                        }
+                        StyledText {
+                            text: root.daemonRunning ? "active" : "offline"
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: root.daemonRunning ? "#4CAF50" : "#F44336"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
 
                     // ── Current + Prev / Next ──────────────────
@@ -525,8 +616,16 @@ PluginComponent {
                                     root.pluginService.savePluginData(root.pluginId, "showInBar",
                                         root.showInBar ? "true" : "false");
                             }
-                        }
                     }
+                }
+
+                // ── Restart Daemon ────────────────────────
+                DankButton {
+                    text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
+                    width: parent.width
+                    height: 36
+                    iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
+                    onClicked: daemon.restartDaemon()
                 }
             }
         }
@@ -867,6 +966,15 @@ PluginComponent {
                             root.fetchCurrent();
                             root.fetchList();
                         }
+                    }
+
+                    // Restart Daemon button
+                    DankButton {
+                        text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
+                        width: parent.width
+                        height: 36
+                        iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
+                        onClicked: daemon.restartDaemon()
                     }
                 }
             }
