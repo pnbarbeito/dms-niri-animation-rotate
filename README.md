@@ -1,4 +1,4 @@
-# dank-niri-animation-rotate
+# dms-niri-animation-rotate
 
 Niri window animation rotation control for [Dank Material Shell](https://danklinux.com). Switch animations, toggle auto/manual modes, and filter events — all from the Control Center. **Daemon included — no manual setup required.**
 
