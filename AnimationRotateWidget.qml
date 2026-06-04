@@ -52,6 +52,20 @@ PluginComponent {
         }
     }
 
+    // ── Process component for launching daemon (no auto-destroy) ──
+    // The daemon is backgrounded via & — auto-destroying the Process
+    // would kill the process group and take the daemon with it.
+    Component {
+        id: launchProcComponent
+        Process {
+            property var _callback: null
+            onExited: {
+                var cb = _callback;
+                if (cb) cb("");
+            }
+        }
+    }
+
     // ── Daemon Manager (auto-start + health check) ──────────
     QtObject {
         id: daemon
@@ -74,6 +88,7 @@ PluginComponent {
         function launchDaemon() {
             var bin = root.pluginHome + "/bin/niri-animation-rotate";
             var animDir = root.pluginHome + "/animations";
+            var configFile = root.pluginHome + "/config.kdl";
             var sock = expandPath(root.socketPath);
             var niriDmsDir = expandPath("~/.config/niri/dms");
             var animTarget = niriDmsDir + "/animation.kdl";
@@ -84,15 +99,17 @@ PluginComponent {
             var setupCmd = "chmod +x '" + bin + "'; " +
                 "mkdir -p '" + niriDmsDir + "'; " +
                 "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
-                "pkill -x niri-animation-rotate 2>/dev/null; " +
                 "rm -f '" + sock + "'; " +
+                // Create config.kdl with paths if it doesn't exist (daemon will append settings here)
+                "test -f '" + configFile + "' || printf 'animation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
                 "'" + bin + "'" +
+                " --config='" + configFile + "'" +
                 " --animation-dir='" + animDir + "'" +
                 " --animation-target='" + animTarget + "'" +
                 " --control-socket='" + sock + "'" +
-                " &";
+                " </dev/null >/dev/null 2>&1 &";
 
-            var proc = cmdProcComponent.createObject(root, {
+            var proc = launchProcComponent.createObject(root, {
                 "command": ["sh", "-c", setupCmd],
                 "_callback": function(result) { retryAttempts = 0; retryConnect(); },
                 "running": true
@@ -115,13 +132,14 @@ PluginComponent {
         }
 
         function restartDaemon() {
+            root.daemonRunning = false;
             retryAttempts = 0;
+            retryTimer.stop();
+            // Remove stale socket so the new daemon can bind, then launch.
+            // Old daemon becomes orphaned (no clients on the deleted socket).
             var proc = cmdProcComponent.createObject(root, {
-                "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1; rm -f '" + expandPath(root.socketPath) + "'"],
-                "_callback": function() {
-                    root.daemonRunning = false;
-                    launchDaemon();
-                },
+                "command": ["sh", "-c", "rm -f '" + expandPath(root.socketPath) + "'"],
+                "_callback": function() { launchDaemon(); },
                 "running": true
             });
         }
@@ -673,7 +691,7 @@ PluginComponent {
 
     // ── Popout ─────────────────────────────────────────────────
         popoutWidth: 380
-        popoutHeight: 600
+        popoutHeight: 640
 
         popoutContent: Component {
             PopoutComponent {

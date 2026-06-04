@@ -1,0 +1,29 @@
+Error:   × error loading config
+  ├─▶ error parsing
+  ╰─▶ error parsing KDL
+Error:   × failed to parse included config
+     ╭─[config.kdl:408:1]
+ 408 │ include "dms/windowrules.kdl"
+ 409 │ include "dms/animation.kdl"
+     · ───┬───
+     ·    ╰── node starts here
+     ╰────
+Error:   × error parsing KDL
+Error:   × identifiers cannot be used as arguments
+     ╭─[dms/animation.kdl:412:1]
+ 412 │ }
+ 413 │            vec2 b = a - o + K2;
+     ·                 ┬
+     ·                 ╰── unexpected identifier
+ 414 │                 vec2 c = a - 1.0 + 2.0 * K2;
+     ╰────
+  help: consider enclosing in double quotes ".."
+Error:   × found `=`, expected `"`, `(`, `+`, `-`, `0`, `;`, `\`, `r`, `{`, `false`,
+  │ `null`, `true`, letter, newline, whitespace or end of input
+     ╭─[dms/animation.kdl:412:1]
+ 412 │ }
+ 413 │            vec2 b = a - o + K2;
+     ·                   ┬
+     ·                   ╰── unexpected token
+ 414 │                 vec2 c = a - 1.0 + 2.0 * K2;
+     ╰────
