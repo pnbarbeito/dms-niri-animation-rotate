@@ -48,7 +48,7 @@ The plugin auto-starts the daemon and sets up all required config files on first
 ### Manual
 
 ```bash
-git clone https://github.com/pnbarbeito/dank-niri-animation-rotate.git \
+git clone https://github.com/pnbarbeito/dms-niri-animation-rotate.git \
   ~/.config/DankMaterialShell/plugins/animationRotate/
 ```
 
