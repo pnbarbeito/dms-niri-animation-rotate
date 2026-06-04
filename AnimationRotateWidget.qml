@@ -94,10 +94,12 @@ PluginComponent {
 
             var setupCmd = [
                 "sh", "-c",
+                // ---- trace: confirm Process is running ----
+                "date >> /tmp/dms_launch_trace.log && " +
                 // Ensure binary is executable
-                "chmod +x '" + bin + "' && " +
+                "chmod +x '" + bin + "' >> /tmp/dms_launch_trace.log 2>&1 && " +
                 // Create the DMS output dir inside niri config
-                "mkdir -p '" + niriDmsDir + "' && " +
+                "mkdir -p '" + niriDmsDir + "' >> /tmp/dms_launch_trace.log 2>&1 && " +
                 // Create a minimal config file if one doesn't exist
                 "test -f '" + configFile + "' || printf '// niri-animation-rotate config\\nanimation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
                 // Add include line to niri config if not already there
@@ -111,7 +113,7 @@ PluginComponent {
                 " --animation-dir='" + animDir + "'" +
                 " --animation-target='" + animTarget + "'" +
                 " --control-socket='" + sock + "'" +
-                " &"
+                " >> /tmp/dms_daemon.log 2>&1 &"
             ];
 
             var proc = cmdProcComponent.createObject(root, {
