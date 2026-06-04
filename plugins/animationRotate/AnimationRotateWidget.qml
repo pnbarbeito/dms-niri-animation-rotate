@@ -41,15 +41,18 @@ PluginComponent {
             property var _callback: null
             property string _outputBuffer: ""
             stdout: SplitParser {
-                onRead: function(data) {
+                onRead: function (data) {
                     cmdProcess._outputBuffer += data + "\n";
                 }
             }
             onExited: {
                 var result = cmdProcess._outputBuffer.trim();
                 var cb = cmdProcess._callback;
-                if (cb) cb(result);
-                Qt.callLater(function() { cmdProcess.destroy(); });
+                if (cb)
+                    cb(result);
+                Qt.callLater(function () {
+                    cmdProcess.destroy();
+                });
             }
         }
     }
@@ -60,7 +63,7 @@ PluginComponent {
 
         function checkAndStart() {
             // Try to reach the daemon via the socket
-            root.sendCommand("current", function(resp) {
+            root.sendCommand("current", function (resp) {
                 if (resp !== "" && resp !== "ERR") {
                     root.daemonRunning = true;
                     root.fetchCurrent();
@@ -80,31 +83,29 @@ PluginComponent {
             var sock = expandPath(root.socketPath);
             var cfg = cfgDir + "/config.kdl";
 
-            var setupCmd = [
-                "sh", "-c",
-                "chmod +x '" + bin + "' && " +
-                "mkdir -p '" + cfgDir + "' '" + animDst + "' && " +
-                "cp -n '" + animSrc + "/*.kdl' '" + animDst + "/' 2>/dev/null; " +
-                "test -f '" + cfg + "' || echo 'auto-rotation true' > '" + cfg + "'; " +
-                "'" + bin + "' --animation-dir='" + animDst + "' --control-socket='" + sock + "' &"
-            ];
+            var setupCmd = ["sh", "-c", "chmod +x '" + bin + "' && " + "mkdir -p '" + cfgDir + "' '" + animDst + "' && " + "cp -n '" + animSrc + "/*.kdl' '" + animDst + "/' 2>/dev/null; " + "test -f '" + cfg + "' || echo 'auto-rotation true' > '" + cfg + "'; " + "'" + bin + "' --animation-dir='" + animDst + "' --control-socket='" + sock + "' &"];
 
             var proc = cmdProcComponent.createObject(root, {
                 "command": setupCmd,
-                "_callback": function(result) { retryConnect(0); },
+                "_callback": function (result) {
+                    retryConnect(0);
+                },
                 "running": true
             });
 
             function retryConnect(attempt) {
-                if (attempt >= 10) return; // Give up after ~5s
-                root.sendCommand("current", function(resp) {
+                if (attempt >= 10)
+                    return; // Give up after ~5s
+                root.sendCommand("current", function (resp) {
                     if (resp !== "" && resp !== "ERR") {
                         root.daemonRunning = true;
                         root.fetchCurrent();
                         root.fetchList();
                         root.fetchStatus();
                     } else {
-                        setTimeout(function() { retryConnect(attempt + 1); }, 500);
+                        setTimeout(function () {
+                            retryConnect(attempt + 1);
+                        }, 500);
                     }
                 });
             }
@@ -113,7 +114,7 @@ PluginComponent {
         function restartDaemon() {
             var proc = cmdProcComponent.createObject(root, {
                 "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1"],
-                "_callback": function() {
+                "_callback": function () {
                     root.daemonRunning = false;
                     launchDaemon();
                 },
@@ -139,21 +140,25 @@ PluginComponent {
     }
 
     function fetchCurrent(silent) {
-        sendCommand("current", function(resp) {
-            if (resp !== "" && resp !== "ERR") root.currentAnim = resp;
-            if (!silent) root.isLoading = false;
+        sendCommand("current", function (resp) {
+            if (resp !== "" && resp !== "ERR")
+                root.currentAnim = resp;
+            if (!silent)
+                root.isLoading = false;
         });
     }
 
     function fetchList() {
-        sendCommand("list", function(resp) {
+        sendCommand("list", function (resp) {
             if (resp !== "" && resp !== "ERR")
-                root.animationList = resp.split('\n').filter(function(l) { return l.trim() !== ""; });
+                root.animationList = resp.split('\n').filter(function (l) {
+                    return l.trim() !== "";
+                });
         });
     }
 
     function fetchStatus() {
-        sendCommand("status", function(resp) {
+        sendCommand("status", function (resp) {
             if (resp !== "" && resp !== "ERR") {
                 var lines = resp.split('\n');
                 for (var i = 0; i < lines.length; i++) {
@@ -169,17 +174,28 @@ PluginComponent {
         });
     }
 
-    function doNext()    { root.isLoading = true; sendCommand("next",   function(r) { root.fetchCurrent(false); }); }
-    function doPrev()    { root.isLoading = true; sendCommand("prev",   function(r) { root.fetchCurrent(false); }); }
+    function doNext() {
+        root.isLoading = true;
+        sendCommand("next", function (r) {
+            root.fetchCurrent(false);
+        });
+    }
+    function doPrev() {
+        root.isLoading = true;
+        sendCommand("prev", function (r) {
+            root.fetchCurrent(false);
+        });
+    }
 
     function doSelect(name) {
-        sendCommand("select " + name, function(resp) {
-            if (resp === "ok") root.currentAnim = name;
+        sendCommand("select " + name, function (resp) {
+            if (resp === "ok")
+                root.currentAnim = name;
         });
     }
 
     function doSetMode(mode) {
-        sendCommand("mode " + mode, function(resp) {
+        sendCommand("mode " + mode, function (resp) {
             if (resp === "ok") {
                 root.currentMode = mode;
                 if (root.pluginService)
@@ -305,7 +321,9 @@ PluginComponent {
                             color: Theme.surfaceText
                         }
                         Rectangle {
-                            width: 12; height: 12; radius: 6
+                            width: 12
+                            height: 12
+                            radius: 6
                             anchors.verticalCenter: parent.verticalCenter
                             color: root.daemonRunning ? "#4CAF50" : "#F44336"
                         }
@@ -389,7 +407,7 @@ PluginComponent {
                                 options: root.animationList
                                 currentValue: root.currentAnim
                                 emptyText: "No animations found"
-                                onValueChanged: function(value) {
+                                onValueChanged: function (value) {
                                     if (value !== root.currentAnim)
                                         root.doSelect(value);
                                 }
@@ -442,7 +460,10 @@ PluginComponent {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: { if (root.currentMode !== "auto") root.doSetMode("auto"); }
+                                        onClicked: {
+                                            if (root.currentMode !== "auto")
+                                                root.doSetMode("auto");
+                                        }
                                     }
                                 }
 
@@ -465,7 +486,10 @@ PluginComponent {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: { if (root.currentMode !== "manual") root.doSetMode("manual"); }
+                                        onClicked: {
+                                            if (root.currentMode !== "manual")
+                                                root.doSetMode("manual");
+                                        }
                                     }
                                 }
                             }
@@ -613,362 +637,12 @@ PluginComponent {
                             onClicked: {
                                 root.showInBar = !root.showInBar;
                                 if (root.pluginService)
-                                    root.pluginService.savePluginData(root.pluginId, "showInBar",
-                                        root.showInBar ? "true" : "false");
-                            }
-                    }
-                }
-
-                // ── Restart Daemon ────────────────────────
-                DankButton {
-                    text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
-                    width: parent.width
-                    height: 36
-                    iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
-                    onClicked: daemon.restartDaemon()
-                }
-            }
-        }
-    }
-
-    // ── Popout ─────────────────────────────────────────────────
-    popoutWidth: 380
-    popoutHeight: 600
-
-    popoutContent: Component {
-        PopoutComponent {
-            id: mainPopout
-            headerText: "Animation Rotate"
-            showCloseButton: true
-
-            Item {
-                width: parent.width
-                height: root.popoutHeight - mainPopout.headerHeight - Theme.spacingM * 2
-
-                DankFlickable {
-                    id: popoutFlickable
-                    anchors.fill: parent
-                    anchors.margins: Theme.spacingM
-                    clip: true
-                    contentHeight: popoutColumn.implicitHeight
-
-                    Column {
-                        id: popoutColumn
-                        width: parent.width
-                        spacing: Theme.spacingM
-
-                    // Current + Prev/Next
-                    StyledRect {
-                        width: parent.width
-                        height: 48
-                        radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHighest
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: Theme.spacingS
-                            spacing: Theme.spacingS
-
-                            DankButton {
-                                text: "‹"
-                                implicitWidth: 50
-                                implicitHeight: 36
-                                enabled: !root.isLoading
-                                onClicked: root.doPrev()
-                            }
-
-                            StyledText {
-                                text: root.isLoading ? "…" : root.currentAnim
-                                font.weight: Font.Bold
-                                color: Theme.surfaceText
-                                Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
-                            }
-
-                            DankButton {
-                                text: "›"
-                                implicitWidth: 50
-                                implicitHeight: 36
-                                enabled: !root.isLoading
-                                onClicked: root.doNext()
+                                    root.pluginService.savePluginData(root.pluginId, "showInBar", root.showInBar ? "true" : "false");
                             }
                         }
                     }
 
-                    // Selector
-                    StyledRect {
-                        width: parent.width
-                        height: selectorPopoutCol.implicitHeight + Theme.spacingM * 2
-                        radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHighest
-
-                        Column {
-                            id: selectorPopoutCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.margins: Theme.spacingM
-                            spacing: Theme.spacingS
-
-                            StyledText {
-                                text: "Select Animation"
-                                font.weight: Font.Bold
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.surfaceText
-                            }
-
-                            DankDropdown {
-                                id: popoutAnimDropdown
-                                width: parent.width
-                                compactMode: true
-                                dropdownWidth: parent.width
-                                openUpwards: false
-                                maxPopupHeight: 280
-                                options: root.animationList
-                                currentValue: root.currentAnim
-                                emptyText: "No animations found"
-                                onValueChanged: function(value) {
-                                    if (value !== root.currentAnim)
-                                        root.doSelect(value);
-                                }
-                            }
-                        }
-                    }
-
-                    // Mode
-                    StyledRect {
-                        width: parent.width
-                        height: modePopoutCol.implicitHeight + Theme.spacingM * 2
-                        radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHighest
-
-                        Column {
-                            id: modePopoutCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.margins: Theme.spacingM
-                            spacing: Theme.spacingS
-
-                            StyledText {
-                                text: "Mode"
-                                font.weight: Font.Bold
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.surfaceText
-                            }
-
-                            RowLayout {
-                                width: parent.width
-                                spacing: Theme.spacingS
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 40
-                                    radius: Theme.cornerRadius
-                                    color: root.currentMode === "auto" ? Theme.primary : Theme.surfaceContainer
-                                    border.color: root.currentMode === "auto" ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
-                                    border.width: 1
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: "Auto"
-                                        font.weight: root.currentMode === "auto" ? Font.Bold : Font.Normal
-                                        color: root.currentMode === "auto" ? Theme.surfaceText : Theme.surfaceVariantText
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: { if (root.currentMode !== "auto") root.doSetMode("auto"); }
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 40
-                                    radius: Theme.cornerRadius
-                                    color: root.currentMode === "manual" ? Theme.primary : Theme.surfaceContainer
-                                    border.color: root.currentMode === "manual" ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
-                                    border.width: 1
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: "Manual"
-                                        font.weight: root.currentMode === "manual" ? Font.Bold : Font.Normal
-                                        color: root.currentMode === "manual" ? Theme.surfaceText : Theme.surfaceVariantText
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: { if (root.currentMode !== "manual") root.doSetMode("manual"); }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Event filters
-                    StyledRect {
-                        width: parent.width
-                        height: eventsPopoutCol.implicitHeight + Theme.spacingM * 2
-                        radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHighest
-                        opacity: root.currentMode === "auto" ? 1.0 : 0.4
-
-                        Column {
-                            id: eventsPopoutCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.margins: Theme.spacingM
-                            spacing: Theme.spacingS
-
-                            StyledText {
-                                text: "Event Filters (Auto Mode)"
-                                font.weight: Font.Bold
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.surfaceText
-                            }
-
-                            Rectangle {
-                                width: parent.width
-                                height: 36
-                                color: "transparent"
-                                enabled: root.currentMode === "auto"
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.spacingS
-                                    spacing: Theme.spacingM
-
-                                    DankIcon {
-                                        name: root.ignoreWindowOpened ? "check_box" : "check_box_outline_blank"
-                                        color: root.ignoreWindowOpened ? Theme.primary : Theme.surfaceVariantText
-                                        size: Theme.iconSize
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
-
-                                    StyledText {
-                                        text: "Ignore Window Opened"
-                                        color: Theme.surfaceText
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    preventStealing: true
-                                    enabled: root.currentMode === "auto"
-                                    onClicked: {
-                                        root.toggleWindowOpened();
-                                    }
-                                }
-                            }
-
-                            // Ignore Window Closed
-                            Rectangle {
-                                width: parent.width
-                                height: 36
-                                color: "transparent"
-                                enabled: root.currentMode === "auto"
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.spacingS
-                                    spacing: Theme.spacingM
-
-                                    DankIcon {
-                                        name: root.ignoreWindowClosed ? "check_box" : "check_box_outline_blank"
-                                        color: root.ignoreWindowClosed ? Theme.primary : Theme.surfaceVariantText
-                                        size: Theme.iconSize
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
-
-                                    StyledText {
-                                        text: "Ignore Window Closed"
-                                        color: Theme.surfaceText
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    preventStealing: true
-                                    enabled: root.currentMode === "auto"
-                                    onClicked: {
-                                        root.toggleWindowClosed();
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── Show Name in Bar ────────────────────────
-                    StyledRect {
-                        width: parent.width
-                        height: showInBarPopoutRow.implicitHeight + Theme.spacingM * 2
-                        radius: Theme.cornerRadius
-                        color: Theme.surfaceContainerHighest
-
-                        RowLayout {
-                            id: showInBarPopoutRow
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.margins: Theme.spacingM
-                            spacing: Theme.spacingM
-
-                            DankIcon {
-                                name: root.showInBar ? "check_box" : "check_box_outline_blank"
-                                color: root.showInBar ? Theme.primary : Theme.surfaceVariantText
-                                size: Theme.iconSize
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-
-                            StyledText {
-                                text: "Show Name in Bar"
-                                color: Theme.surfaceText
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            preventStealing: true
-                            onClicked: {
-                                root.showInBar = !root.showInBar;
-                                if (root.pluginService)
-                                    root.pluginService.savePluginData(root.pluginId, "showInBar",
-                                        root.showInBar ? "true" : "false");
-                            }
-                        }
-                    }
-
-                    // Refresh button
-                    DankButton {
-                        text: "Refresh"
-                        width: parent.width
-                        height: 36
-                        iconName: "refresh"
-                        onClicked: {
-                            root.fetchCurrent();
-                            root.fetchList();
-                        }
-                    }
-
-                    // Restart Daemon button
+                    // ── Restart Daemon ────────────────────────
                     DankButton {
                         text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
                         width: parent.width
@@ -979,6 +653,361 @@ PluginComponent {
                 }
             }
         }
-    }
-}
-}
+
+        // ── Popout ─────────────────────────────────────────────────
+        popoutWidth: 380
+        popoutHeight: 600
+
+        popoutContent: Component {
+            PopoutComponent {
+                id: mainPopout
+                headerText: "Animation Rotate"
+                showCloseButton: true
+
+                Item {
+                    width: parent.width
+                    height: root.popoutHeight - mainPopout.headerHeight - Theme.spacingM * 2
+
+                    DankFlickable {
+                        id: popoutFlickable
+                        anchors.fill: parent
+                        anchors.margins: Theme.spacingM
+                        clip: true
+                        contentHeight: popoutColumn.implicitHeight
+
+                        Column {
+                            id: popoutColumn
+                            width: parent.width
+                            spacing: Theme.spacingM
+
+                            // Current + Prev/Next
+                            StyledRect {
+                                width: parent.width
+                                height: 48
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHighest
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: Theme.spacingS
+                                    spacing: Theme.spacingS
+
+                                    DankButton {
+                                        text: "‹"
+                                        implicitWidth: 50
+                                        implicitHeight: 36
+                                        enabled: !root.isLoading
+                                        onClicked: root.doPrev()
+                                    }
+
+                                    StyledText {
+                                        text: root.isLoading ? "…" : root.currentAnim
+                                        font.weight: Font.Bold
+                                        color: Theme.surfaceText
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
+
+                                    DankButton {
+                                        text: "›"
+                                        implicitWidth: 50
+                                        implicitHeight: 36
+                                        enabled: !root.isLoading
+                                        onClicked: root.doNext()
+                                    }
+                                }
+                            }
+
+                            // Selector
+                            StyledRect {
+                                width: parent.width
+                                height: selectorPopoutCol.implicitHeight + Theme.spacingM * 2
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHighest
+
+                                Column {
+                                    id: selectorPopoutCol
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingS
+
+                                    StyledText {
+                                        text: "Select Animation"
+                                        font.weight: Font.Bold
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.surfaceText
+                                    }
+
+                                    DankDropdown {
+                                        id: popoutAnimDropdown
+                                        width: parent.width
+                                        compactMode: true
+                                        dropdownWidth: parent.width
+                                        openUpwards: false
+                                        maxPopupHeight: 280
+                                        options: root.animationList
+                                        currentValue: root.currentAnim
+                                        emptyText: "No animations found"
+                                        onValueChanged: function (value) {
+                                            if (value !== root.currentAnim)
+                                                root.doSelect(value);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Mode
+                            StyledRect {
+                                width: parent.width
+                                height: modePopoutCol.implicitHeight + Theme.spacingM * 2
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHighest
+
+                                Column {
+                                    id: modePopoutCol
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingS
+
+                                    StyledText {
+                                        text: "Mode"
+                                        font.weight: Font.Bold
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.surfaceText
+                                    }
+
+                                    RowLayout {
+                                        width: parent.width
+                                        spacing: Theme.spacingS
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            height: 40
+                                            radius: Theme.cornerRadius
+                                            color: root.currentMode === "auto" ? Theme.primary : Theme.surfaceContainer
+                                            border.color: root.currentMode === "auto" ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
+                                            border.width: 1
+
+                                            StyledText {
+                                                anchors.centerIn: parent
+                                                text: "Auto"
+                                                font.weight: root.currentMode === "auto" ? Font.Bold : Font.Normal
+                                                color: root.currentMode === "auto" ? Theme.surfaceText : Theme.surfaceVariantText
+                                            }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (root.currentMode !== "auto")
+                                                        root.doSetMode("auto");
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            height: 40
+                                            radius: Theme.cornerRadius
+                                            color: root.currentMode === "manual" ? Theme.primary : Theme.surfaceContainer
+                                            border.color: root.currentMode === "manual" ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
+                                            border.width: 1
+
+                                            StyledText {
+                                                anchors.centerIn: parent
+                                                text: "Manual"
+                                                font.weight: root.currentMode === "manual" ? Font.Bold : Font.Normal
+                                                color: root.currentMode === "manual" ? Theme.surfaceText : Theme.surfaceVariantText
+                                            }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (root.currentMode !== "manual")
+                                                        root.doSetMode("manual");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Event filters
+                            StyledRect {
+                                width: parent.width
+                                height: eventsPopoutCol.implicitHeight + Theme.spacingM * 2
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHighest
+                                opacity: root.currentMode === "auto" ? 1.0 : 0.4
+
+                                Column {
+                                    id: eventsPopoutCol
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingS
+
+                                    StyledText {
+                                        text: "Event Filters (Auto Mode)"
+                                        font.weight: Font.Bold
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        color: Theme.surfaceText
+                                    }
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 36
+                                        color: "transparent"
+                                        enabled: root.currentMode === "auto"
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: Theme.spacingS
+                                            spacing: Theme.spacingM
+
+                                            DankIcon {
+                                                name: root.ignoreWindowOpened ? "check_box" : "check_box_outline_blank"
+                                                color: root.ignoreWindowOpened ? Theme.primary : Theme.surfaceVariantText
+                                                size: Theme.iconSize
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+
+                                            StyledText {
+                                                text: "Ignore Window Opened"
+                                                color: Theme.surfaceText
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            preventStealing: true
+                                            enabled: root.currentMode === "auto"
+                                            onClicked: {
+                                                root.toggleWindowOpened();
+                                            }
+                                        }
+                                    }
+
+                                    // Ignore Window Closed
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 36
+                                        color: "transparent"
+                                        enabled: root.currentMode === "auto"
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: Theme.spacingS
+                                            spacing: Theme.spacingM
+
+                                            DankIcon {
+                                                name: root.ignoreWindowClosed ? "check_box" : "check_box_outline_blank"
+                                                color: root.ignoreWindowClosed ? Theme.primary : Theme.surfaceVariantText
+                                                size: Theme.iconSize
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+
+                                            StyledText {
+                                                text: "Ignore Window Closed"
+                                                color: Theme.surfaceText
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            preventStealing: true
+                                            enabled: root.currentMode === "auto"
+                                            onClicked: {
+                                                root.toggleWindowClosed();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ── Show Name in Bar ────────────────────────
+                            StyledRect {
+                                width: parent.width
+                                height: showInBarPopoutRow.implicitHeight + Theme.spacingM * 2
+                                radius: Theme.cornerRadius
+                                color: Theme.surfaceContainerHighest
+
+                                RowLayout {
+                                    id: showInBarPopoutRow
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingM
+
+                                    DankIcon {
+                                        name: root.showInBar ? "check_box" : "check_box_outline_blank"
+                                        color: root.showInBar ? Theme.primary : Theme.surfaceVariantText
+                                        size: Theme.iconSize
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    StyledText {
+                                        text: "Show Name in Bar"
+                                        color: Theme.surfaceText
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    preventStealing: true
+                                    onClicked: {
+                                        root.showInBar = !root.showInBar;
+                                        if (root.pluginService)
+                                            root.pluginService.savePluginData(root.pluginId, "showInBar", root.showInBar ? "true" : "false");
+                                    }
+                                }
+                            }
+
+                            // Refresh button
+                            DankButton {
+                                text: "Refresh"
+                                width: parent.width
+                                height: 36
+                                iconName: "refresh"
+                                onClicked: {
+                                    root.fetchCurrent();
+                                    root.fetchList();
+                                }
+                            }
+
+                            // Restart Daemon button
+                            DankButton {
+                                text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
+                                width: parent.width
+                                height: 36
+                                iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
+                                onClicked: daemon.restartDaemon()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    
+

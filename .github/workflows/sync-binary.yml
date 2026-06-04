@@ -1,0 +1,70 @@
+name: Sync Daemon Binary
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest daemon release
+        id: fetch
+        run: |
+          LATEST_TAG=$(curl -fsSL https://api.github.com/repos/pnbarbeito/niri-animation-rotate/releases/latest | jq -r .tag_name)
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "No release found"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "LATEST_TAG=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          echo "tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+
+          DOWNLOAD_URL="https://github.com/pnbarbeito/niri-animation-rotate/releases/download/${LATEST_TAG}/niri-animation-rotate-linux-x86_64.tar.gz"
+          echo "Download URL: $DOWNLOAD_URL"
+          curl -fsSL "$DOWNLOAD_URL" -o /tmp/daemon.tar.gz || {
+            echo "Download failed"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          tar xzf /tmp/daemon.tar.gz -C /tmp/
+          cp /tmp/niri-animation-rotate/niri-animation-rotate bin/
+          cp /tmp/niri-animation-rotate/nrctl bin/
+          chmod +x bin/niri-animation-rotate bin/nrctl
+
+          # Verify it's statically linked
+          file bin/niri-animation-rotate | grep -q "statically linked" || {
+            echo "Warning: binary may not be statically linked"
+          }
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to binary"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true' && steps.fetch.outputs.skip != 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "chore: update bundled binary to ${{ steps.fetch.outputs.LATEST_TAG }}"
+          branch: "sync/binary-${{ steps.fetch.outputs.LATEST_TAG }}"
+          commit-message: "chore: update bundled niri-animation-rotate to ${{ steps.fetch.outputs.LATEST_TAG }}"
+          body: |
+            Automated sync of the daemon binary from [niri-animation-rotate ${{ steps.fetch.outputs.LATEST_TAG }}](https://github.com/pnbarbeito/niri-animation-rotate/releases/tag/${{ steps.fetch.outputs.LATEST_TAG }}).
+
+            Updates:
+            - `bin/niri-animation-rotate`
+            - `bin/nrctl`
+          delete-branch: true
