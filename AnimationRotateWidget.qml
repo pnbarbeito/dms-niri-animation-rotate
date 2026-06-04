@@ -57,17 +57,6 @@ PluginComponent {
         id: daemon
         property int retryAttempts: 0
 
-        // Timer for retrying connection after daemon launch
-        property Timer retryTimer: Timer {
-            interval: 500
-            repeat: false
-            onTriggered: {
-                if (daemon.retryAttempts < 10) {
-                    daemon.retryConnect();
-                }
-            }
-        }
-
         function checkAndStart() {
             // Try to reach the daemon via the socket
             root.sendCommand("current", function (resp) {
@@ -85,43 +74,27 @@ PluginComponent {
         function launchDaemon() {
             var bin = root.pluginHome + "/bin/niri-animation-rotate";
             var animDir = root.pluginHome + "/animations";
-            var configFile = root.pluginHome + "/config.kdl";
             var sock = expandPath(root.socketPath);
             var niriDmsDir = expandPath("~/.config/niri/dms");
             var animTarget = niriDmsDir + "/animation.kdl";
             var niriConfig = expandPath("~/.config/niri/config.kdl");
             var includeLine = 'include "dms/animation.kdl"';
 
-            var setupCmd = [
-                "sh", "-c",
-                // ---- trace: confirm Process is running ----
-                "date >> /tmp/dms_launch_trace.log && " +
-                // Ensure binary is executable
-                "chmod +x '" + bin + "' >> /tmp/dms_launch_trace.log 2>&1 && " +
-                // Create the DMS output dir inside niri config
-                "mkdir -p '" + niriDmsDir + "' >> /tmp/dms_launch_trace.log 2>&1 && " +
-                // Create a minimal config file if one doesn't exist
-                "test -f '" + configFile + "' || printf '// niri-animation-rotate config\\nanimation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
-                // Add include line to niri config if not already there
+            // Setup + launch (all with ; not && to avoid chain break on non-critical failures)
+            var setupCmd = "chmod +x '" + bin + "'; " +
+                "mkdir -p '" + niriDmsDir + "'; " +
                 "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
-                // Kill any stale instance and clean up socket before launching
-                "pkill -f niri-animation-rotate 2>/dev/null; " +
+                "pkill -x niri-animation-rotate 2>/dev/null; " +
                 "rm -f '" + sock + "'; " +
-                // Launch daemon (Process inherits NIRI_SOCKET from DMS env)
                 "'" + bin + "'" +
-                " --config='" + configFile + "'" +
                 " --animation-dir='" + animDir + "'" +
                 " --animation-target='" + animTarget + "'" +
                 " --control-socket='" + sock + "'" +
-                " >> /tmp/dms_daemon.log 2>&1 &"
-            ];
+                " &";
 
             var proc = cmdProcComponent.createObject(root, {
-                "command": setupCmd,
-                "_callback": function(result) {
-                    retryAttempts = 0;
-                    retryConnect();
-                },
+                "command": ["sh", "-c", setupCmd],
+                "_callback": function(result) { retryAttempts = 0; retryConnect(); },
                 "running": true
             });
         }
@@ -151,6 +124,18 @@ PluginComponent {
                 },
                 "running": true
             });
+        }
+    }
+
+    // Timer for retrying daemon connection after launch
+    Timer {
+        id: retryTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            if (daemon.retryAttempts < 10) {
+                daemon.retryConnect();
+            }
         }
     }
 
