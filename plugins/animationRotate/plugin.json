@@ -1,0 +1,31 @@
+{
+  "id": "animationRotate",
+  "name": "Animation Rotate",
+  "description": "Control niri-animation-rotate from the Control Center: switch animations, change modes, and filter events. Daemon included — batteries included.",
+  "version": "1.0.0",
+  "author": "pnbarbeito",
+  "icon": "animation",
+  "type": "widget",
+  "component": "./AnimationRotateWidget.qml",
+  "settings": "./AnimationRotateSettings.qml",
+  "capabilities": [
+    "control-center",
+    "dankbar-widget"
+  ],
+  "category": "utilities",
+  "compositors": [
+    "niri"
+  ],
+  "distro": [
+    "any"
+  ],
+  "dependencies": [
+    "niri"
+  ],
+  "requires_dms": ">=1.4.0",
+  "permissions": [
+    "process",
+    "settings_read",
+    "settings_write"
+  ]
+}

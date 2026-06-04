@@ -1,0 +1,89 @@
+/*
+Title: pixelfade-wave
+Authors: liixini | https://github.com/liixini 
+Desc: imported from https://github.com/liixini/shaders
+*/
+
+animations {
+   workspace-switch {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+	horizontal-view-movement {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    window-movement {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    window-resize {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    config-notification-open-close {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    exit-confirmation-open-close {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    screenshot-ui-open {
+        duration-ms 200
+        curve "ease-out-quad"
+    }
+
+    overview-open-close {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    recent-windows-close {
+        spring damping-ratio=0.7 stiffness=200 epsilon=0.0001
+    }
+
+    window-open {
+		duration-ms 500
+		curve "ease-out-cubic"
+        custom-shader r"
+        vec4 open_color(vec3 coords_geo, vec3 size_geo) {
+            float p = niri_clamped_progress;
+            vec2 uv = coords_geo.xy;
+
+            float wave_x = (uv.x + uv.y) * 0.5;
+            float wave_p = smoothstep(0.0, 1.0, p * 1.6 - wave_x * 0.6);
+            float bump = sin(wave_p * 3.14159);
+            float blocks = mix(800.0, 8.0, bump);
+            vec2 q = floor(uv * blocks) / blocks + 0.5 / blocks;
+
+            vec3 tc = niri_geo_to_tex * vec3(q, 1.0);
+            vec4 win = texture2D(niri_tex, tc.st);
+
+            float reveal = smoothstep(0.0, 1.0, wave_p);
+            return win * reveal;
+        }
+        "
+    }
+
+    window-close {
+       	duration-ms 500
+       	curve "ease-out-cubic"
+        custom-shader r"
+		vec4 close_color(vec3 coords_geo, vec3 size_geo) {
+            float p = 1.0 - niri_clamped_progress;
+            vec2 uv = coords_geo.xy;
+
+            float wave_x = (uv.x + uv.y) * 0.5;
+            float wave_p = smoothstep(0.0, 1.0, p * 1.6 - wave_x * 0.6);
+            float bump = sin(wave_p * 3.14159);
+            float blocks = mix(800.0, 8.0, bump);
+            vec2 q = floor(uv * blocks) / blocks + 0.5 / blocks;
+
+            vec3 tc = niri_geo_to_tex * vec3(q, 1.0);
+            vec4 win = texture2D(niri_tex, tc.st);
+
+            float reveal = smoothstep(0.0, 1.0, wave_p);
+            return win * reveal;
+        }
+        "
+    }
+}

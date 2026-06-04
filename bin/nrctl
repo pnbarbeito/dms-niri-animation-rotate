@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+#
+# nrctl — terminal control tool for niri-animation-rotate
+#
+# Sends commands to the daemon's Unix control socket and prints responses.
+# Uses nc (netcat-openbsd) or socat as transport.
+#
+set -euo pipefail
+
+# ─────────────────────────────────────────────────
+# Configuration
+# ─────────────────────────────────────────────────
+
+NRCTL_SOCKET="${NRCTL_SOCKET:-$HOME/.config/niri/niri-animation-rotate/control.sock}"
+
+# ─────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────
+
+die() {
+    echo "nrctl: $*" >&2
+    exit 1
+}
+
+warn() {
+    echo "nrctl: warning: $*" >&2
+}
+
+# Send a single command to the daemon and return the response.
+# Tries nc -U first, falls back to socat if nc fails or is unavailable.
+# Returns the raw output on stdout. If the connection fails,
+# prints an error to stderr and returns non-zero.
+send_cmd() {
+    local cmd="$1"
+    local out
+
+    if ! [ -S "$NRCTL_SOCKET" ]; then
+        die "control socket not found at $NRCTL_SOCKET — is the daemon running?"
+    fi
+
+    if command -v nc &>/dev/null; then
+        out="$(echo "$cmd" | nc -w 3 -U "$NRCTL_SOCKET")" && {
+            # nc succeeded — strip trailing blank line if any
+            out="${out%$'\n'}"
+            echo "$out"
+            return
+        }
+        # nc failed (unsupported -U, daemon unreachable) — fall through to socat
+    fi
+
+    if command -v socat &>/dev/null; then
+        out="$(echo "$cmd" | socat - "UNIX-CONNECT:$NRCTL_SOCKET,connect-timeout=3")" || {
+            warn "socat connection failed"
+            return 1
+        }
+        echo "$out"
+        return
+    fi
+
+    die "neither nc (with -U support) nor socat found — install netcat-openbsd or socat"
+}
+
+# Send a command but don't fail if there's no response (rotation commands).
+send_cmd_quiet() {
+    local cmd="$1"
+
+    if ! [ -S "$NRCTL_SOCKET" ]; then
+        die "control socket not found at $NRCTL_SOCKET — is the daemon running?"
+    fi
+
+    if command -v nc &>/dev/null; then
+        echo "$cmd" | nc -w 3 -U "$NRCTL_SOCKET" >/dev/null 2>&1 || true
+        return
+    fi
+
+    if command -v socat &>/dev/null; then
+        echo "$cmd" | socat - "UNIX-CONNECT:$NRCTL_SOCKET,connect-timeout=3" >/dev/null 2>&1 || true
+        return
+    fi
+
+    die "neither nc (with -U support) nor socat found — install netcat-openbsd or socat"
+}
+
+# ─────────────────────────────────────────────────
+# Subcommands
+# ─────────────────────────────────────────────────
+
+cmd_next() {
+    send_cmd_quiet "next"
+    local current
+    current="$(send_cmd "current")" || current="unknown"
+    echo "→ $current"
+}
+
+cmd_prev() {
+    send_cmd_quiet "prev"
+    local current
+    current="$(send_cmd "current")" || current="unknown"
+    echo "← $current"
+}
+
+cmd_current() {
+    send_cmd "current"
+}
+
+cmd_list() {
+    if [ "${1:-}" = "--json" ]; then
+        send_cmd "list --json"
+    else
+        send_cmd "list"
+    fi
+}
+
+cmd_select() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        die "select requires an animation name"
+    fi
+    send_cmd "select $name"
+}
+
+cmd_status() {
+    if [ "${1:-}" = "--json" ]; then
+        send_cmd "status --json"
+    else
+        send_cmd "status"
+    fi
+}
+
+cmd_set() {
+    local key="${1:-}"
+    if [ -z "$key" ]; then
+        die "set requires a key and value (e.g. 'nrctl set cooldown-ms 500')"
+    fi
+    # shellcheck disable=SC2124
+    local rest="${*:2}"
+    if [ -z "$rest" ]; then
+        die "set requires a value for '$key'"
+    fi
+    # Join all remaining args with spaces (for values with spaces)
+    send_cmd "set $key $rest"
+}
+
+cmd_mode() {
+    local mode="${1:-}"
+    case "$mode" in
+        auto|manual) ;;
+        "") die "mode requires 'auto' or 'manual'" ;;
+        *)  die "invalid mode '$mode' — use 'auto' or 'manual'" ;;
+    esac
+    send_cmd "mode $mode"
+}
+
+# ─────────────────────────────────────────────────
+# Usage
+# ─────────────────────────────────────────────────
+
+usage() {
+    cat <<EOF
+nrctl — terminal control tool for niri-animation-rotate
+
+USAGE
+  nrctl <command> [args]
+
+COMMANDS
+  next               Rotate to the next animation and show result
+  prev               Rotate to the previous animation and show result
+  current            Show the currently active animation name
+  list [--json]      List all available animations (one per line, or JSON)
+  select <name>      Select a specific animation by name (case-insensitive)
+  status [--json]    Show daemon runtime status (key:value, or JSON)
+  set <key> <value>  Change a runtime setting (persists to config file)
+  mode <auto|manual> Switch between auto (event-driven) and manual mode
+  --help, -h         Show this help message
+
+SET KEYS
+  cooldown-ms <ms>     Minimum time between rotations (milliseconds, e.g. 2000)
+  random-order <on|off>    Shuffle animation order on restart and rescans
+  no-window-opened <on|off>  Skip rotation on window open/change events
+  no-window-closed <on|off>  Skip rotation on window close events
+
+  Boolean values: true, false, 1, 0, yes, no (case-sensitive). All changes persist to config file.
+
+EXAMPLES
+  nrctl next                       # → bloom
+  nrctl prev                       # ← prism_fold
+  nrctl current                    # bloom
+  nrctl list                       # bloom / prism_fold / tv_crt
+  nrctl list --json                # ["bloom","prism_fold","tv_crt"]
+  nrctl select tv_crt              # selects 'tv_crt' animation
+  nrctl status                     # mode: auto / current: tv_crt / ...
+  nrctl status --json              # {"mode":"auto","current":"tv_crt",...}
+  nrctl set cooldown-ms 2000       # set 2-second cooldown
+  nrctl set cooldown-ms 0          # disable cooldown
+  nrctl set random-order true      # enable shuffle
+  nrctl set random-order yes       # same as above
+  nrctl set no-window-opened true  # ignore window open events
+  nrctl set no-window-closed 0     # don't ignore window close events
+  nrctl mode manual                # switch to manual mode
+
+The daemon must be running for nrctl to work.
+Run \`nrctl --help\` to see this message again.
+EOF
+}
+
+# ─────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────
+
+main() {
+    case "${1:-}" in
+        --help|-h)
+            usage
+            ;;
+        next|rotate)
+            cmd_next
+            ;;
+        prev)
+            cmd_prev
+            ;;
+        current)
+            cmd_current
+            ;;
+        list)
+            cmd_list "${2:-}"
+            ;;
+        select)
+            cmd_select "${2:-}"
+            ;;
+        status)
+            cmd_status "${2:-}"
+            ;;
+        set)
+            cmd_set "${@:2}"
+            ;;
+        mode)
+            cmd_mode "${2:-}"
+            ;;
+        "")
+            usage
+            exit 1
+            ;;
+        *)
+            die "unknown command '$1' — run 'nrctl --help' for usage"
+            ;;
+    esac
+}
+
+main "$@"
