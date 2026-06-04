@@ -55,6 +55,18 @@ PluginComponent {
     // ── Daemon Manager (auto-start + health check) ──────────
     QtObject {
         id: daemon
+        property int retryAttempts: 0
+
+        // Timer for retrying connection after daemon launch
+        property Timer retryTimer: Timer {
+            interval: 500
+            repeat: false
+            onTriggered: {
+                if (daemon.retryAttempts < 10) {
+                    daemon.retryConnect();
+                }
+            }
+        }
 
         function checkAndStart() {
             // Try to reach the daemon via the socket
@@ -79,6 +91,7 @@ PluginComponent {
             var animTarget = niriDmsDir + "/animation.kdl";
             var niriConfig = expandPath("~/.config/niri/config.kdl");
             var includeLine = 'include "dms/animation.kdl"';
+            var niriSock = Quickshell.env("NIRI_SOCKET") || "/run/user/1000/niri.sock";
 
             var setupCmd = [
                 "sh", "-c",
@@ -90,7 +103,10 @@ PluginComponent {
                 "test -f '" + configFile + "' || printf '// niri-animation-rotate config\\nanimation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
                 // Add include line to niri config if not already there
                 "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
-                // Launch daemon
+                // Kill any stale instance before launching
+                "pkill -f niri-animation-rotate 2>/dev/null; sleep 0.5; " +
+                // Launch daemon (pass NIRI_SOCKET explicitly in case the Process env is stripped)
+                "NIRI_SOCKET='" + niriSock + "' " +
                 "'" + bin + "'" +
                 " --config='" + configFile + "'" +
                 " --animation-dir='" + animDir + "'" +
@@ -101,29 +117,31 @@ PluginComponent {
 
             var proc = cmdProcComponent.createObject(root, {
                 "command": setupCmd,
-                "_callback": function(result) { retryConnect(0); },
+                "_callback": function(result) {
+                    retryAttempts = 0;
+                    retryConnect();
+                },
                 "running": true
             });
+        }
 
-            function retryConnect(attempt) {
-                if (attempt >= 10)
-                    return; // Give up after ~5s
-                root.sendCommand("current", function (resp) {
-                    if (resp !== "" && resp !== "ERR") {
-                        root.daemonRunning = true;
-                        root.fetchCurrent();
-                        root.fetchList();
-                        root.fetchStatus();
-                    } else {
-                        setTimeout(function () {
-                            retryConnect(attempt + 1);
-                        }, 500);
-                    }
-                });
-            }
+        function retryConnect() {
+            if (retryAttempts >= 10) return; // Give up after ~5s
+            root.sendCommand("current", function (resp) {
+                if (resp !== "" && resp !== "ERR") {
+                    root.daemonRunning = true;
+                    root.fetchCurrent();
+                    root.fetchList();
+                    root.fetchStatus();
+                } else {
+                    retryAttempts += 1;
+                    retryTimer.restart();
+                }
+            });
         }
 
         function restartDaemon() {
+            retryAttempts = 0;
             var proc = cmdProcComponent.createObject(root, {
                 "command": ["sh", "-c", "pkill -f niri-animation-rotate 2>/dev/null; sleep 1; rm -f '" + expandPath(root.socketPath) + "'"],
                 "_callback": function() {
