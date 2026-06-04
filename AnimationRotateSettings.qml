@@ -2,6 +2,7 @@ import QtQuick
 import qs.Common
 import qs.Modules.Plugins
 import qs.Widgets
+import Quickshell
 
 PluginSettings {
     id: root
@@ -18,7 +19,7 @@ PluginSettings {
 
     StyledText {
         width: parent.width
-        text: "Configure how the plugin connects to niri-animation-rotate."
+        text: "Configure the daemon connection and refresh interval."
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
         wrapMode: Text.WordWrap
@@ -46,11 +47,27 @@ PluginSettings {
         unit: "ms"
     }
 
-    // ── Bar display ─────────────────────────────────────────────
-    ToggleSetting {
-        settingKey: "showInBar"
-        label: "Show Name in Bar"
-        description: "Show the current animation name in the DankBar pill. Disable to show only the icon."
-        defaultValue: true
+    // ── Keybind Info ─────────────────────────────────────────────
+    StyledText {
+        width: parent.width
+        text: "Keybinds"
+        font.pixelSize: Theme.fontSizeMedium
+        font.weight: Font.Bold
+        color: Theme.surfaceText
+    }
+
+    StyledText {
+        width: parent.width
+        text: "To bind keys for next/prev animation, add custom commands in DMS Keybinds settings:\n\n" +
+              "Next: echo 'next' | nc -U " + pluginHome() + "/control.sock\n" +
+              "Prev: echo 'prev' | nc -U " + pluginHome() + "/control.sock"
+        font.pixelSize: Theme.fontSizeSmall
+        color: Theme.surfaceVariantText
+        wrapMode: Text.WordWrap
+    }
+
+    function pluginHome() {
+        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
+        return home + "/.config/DankMaterialShell/plugins/animationRotate";
     }
 }

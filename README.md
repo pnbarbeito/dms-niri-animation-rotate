@@ -56,7 +56,18 @@ Then activate the plugin from DMS Settings → Plugins → Local.
 
 ## Configuration
 
-Configure socket path and refresh interval from the plugin settings page (right-click the widget → Settings). All other daemon settings are managed through the widget's UI. For terminal control, use `nc` pointing to the plugin socket:
+Configure socket path and refresh interval from the plugin settings page (right-click the widget → Settings). All other daemon settings are managed through the widget's UI.
+
+### Keybind Setup
+
+To bind keys for next/prev animation, add custom commands in DMS Settings → Keybinds:
+
+| Action | Command |
+|---|---|
+| Next animation | `echo 'next' \| nc -U <pluginDir>/control.sock` |
+| Prev animation | `echo 'prev' \| nc -U <pluginDir>/control.sock` |
+
+The exact socket path is shown in the plugin settings page.
 
 ## Screenshots
 
