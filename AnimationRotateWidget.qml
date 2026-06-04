@@ -91,7 +91,6 @@ PluginComponent {
             var animTarget = niriDmsDir + "/animation.kdl";
             var niriConfig = expandPath("~/.config/niri/config.kdl");
             var includeLine = 'include "dms/animation.kdl"';
-            var niriSock = Quickshell.env("NIRI_SOCKET") || "/run/user/1000/niri.sock";
 
             var setupCmd = [
                 "sh", "-c",
@@ -103,10 +102,10 @@ PluginComponent {
                 "test -f '" + configFile + "' || printf '// niri-animation-rotate config\\nanimation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
                 // Add include line to niri config if not already there
                 "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
-                // Kill any stale instance before launching
-                "pkill -f niri-animation-rotate 2>/dev/null; sleep 0.5; " +
-                // Launch daemon (pass NIRI_SOCKET explicitly in case the Process env is stripped)
-                "NIRI_SOCKET='" + niriSock + "' " +
+                // Kill any stale instance and clean up socket before launching
+                "pkill -f niri-animation-rotate 2>/dev/null; " +
+                "rm -f '" + sock + "'; " +
+                // Launch daemon (Process inherits NIRI_SOCKET from DMS env)
                 "'" + bin + "'" +
                 " --config='" + configFile + "'" +
                 " --animation-dir='" + animDir + "'" +
@@ -163,7 +162,7 @@ PluginComponent {
         var escapedCmd = cmd.replace(/'/g, "'\\''");
         var sockPath = expandPath(root.socketPath);
         cmdProcComponent.createObject(root, {
-            "command": ["sh", "-c", "echo '" + escapedCmd + "' | nc -U " + sockPath + " 2>/dev/null || echo 'ERR'"],
+            "command": ["sh", "-c", "echo '" + escapedCmd + "' | nc -w 1 -U " + sockPath + " 2>/dev/null || echo 'ERR'"],
             "_callback": callback,
             "running": true
         });
