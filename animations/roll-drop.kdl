@@ -44,7 +44,7 @@ animations {
 	window-open {
         duration-ms 1000
         curve "ease-out-expo"
-        custom-shader "vec4 fall_from_top(vec3 coords_geo, vec3 size_geo) {
+        custom-shader r"vec4 fall_from_top(vec3 coords_geo, vec3 size_geo) {
             float progress = niri_clamped_progress * niri_clamped_progress;
             vec2 coords = (coords_geo.xy - vec2(0.5, 0.0)) * size_geo.xy;
             coords.y += (1.0 - progress) * 1440.0;
@@ -64,7 +64,7 @@ animations {
     window-close {
         duration-ms 1000
         curve "linear"
-        custom-shader "vec4 fall_to_bottom(vec3 coords_geo, vec3 size_geo) {
+        custom-shader r"vec4 fall_to_bottom(vec3 coords_geo, vec3 size_geo) {
             float progress = niri_clamped_progress * niri_clamped_progress;
             vec2 coords = (coords_geo.xy - vec2(0.5, 0.0)) * size_geo.xy;
             coords.y -= progress * 1440.0;
