@@ -1,21 +1,25 @@
 # dms-niri-animation-rotate
 
-Niri window animation rotation control for [Dank Material Shell](https://danklinux.com). Switch animations, toggle auto/manual modes, and filter events — all from the Control Center. **Daemon included — no manual setup required.**
+Niri window animation rotation control for [Dank Material Shell](https://danklinux.com). Switch animations, toggle auto/manual modes, and filter events — all from the Control Center. **Native DMS daemon — no bundled binaries.**
 
 ## How It Works
 
 ```
-┌────────────────────┐     Unix socket     ┌───────────────────────────┐
-│  DMS Plugin (QML)  │ ◄──────────────────► │  niri-animation-rotate    │
-│                    │    nc -U control.sock│  (bundled daemon, musl)   │
-└────────────────────┘                      └───────────────────────────┘
+┌──────────────────────────────┐      in-process       ┌──────────────────────────┐
+│  DMS Plugin (QML)            │ ◄───────────────────► │  AnimationRotate daemon  │
+│  widget + Control Center UI  │   direct QML refs     │  (daemon surface, QML)   │
+└──────────────────────────────┘                       └────────────┬─────────────┘
+                                                                    │ writes
+                                     control.sock (optional,        ▼  animation.kdl
+                                     for nrctl / keybinds)   ~/.config/niri/dms/
 ```
 
 1. **Install** from the DMS Plugin Marketplace (1 click).
-2. **Activate** the plugin — it auto-starts the bundled daemon.
+2. **Activate** the plugin — DMS creates the daemon surface together with the widget.
 3. **Control** your Niri animations from the Control Center, DankBar, or popout widget.
+4. **Accept the include** — the first time the plugin asks permission to add `include "dms/animation.kdl"` to your niri config (or add it by hand).
 
-Everything is self-contained: the Rust daemon (`niri-animation-rotate`) is statically compiled with musl and included in `bin/`. No Rust toolchain, no building, no manual daemon installation.
+Everything runs inside DMS as QML: the daemon is a *daemon surface* of the plugin, so its lifecycle is tied to the plugin itself (enabled → running, disabled → stopped). There is no external process, no vendored binary, and no polling between widget and daemon — the UI binds directly to daemon state.
 
 ## Features
 
@@ -23,16 +27,17 @@ Everything is self-contained: the Rust daemon (`niri-animation-rotate`) is stati
 - **Animation picker** — dropdown with all detected animations
 - **Auto/Manual mode** — rotate automatically on window events, or manually
 - **Event filters** — ignore window-opened or window-closed events
+- **Debounce cooldown** — minimum time between automatic rotations
+- **Random order** — shuffle presets instead of alphabetical rotation
 - **DankBar pill** — shows the current animation name right in the status bar
-- **Popout window** (380×600) — all controls in a dedicated floating panel
-- **Configurable socket path and refresh interval**
+- **Popout window** — all controls in a dedicated floating panel
 
 ## Requirements
 
-- [Niri](https://github.com/YaLTeR/niri) compositor (v0.1.5+)
-- Dank Material Shell >= 1.4.0
+- [Niri](https://github.com/YaLTeR/niri) compositor
+- Dank Material Shell >= 1.5.0 (native `composite` plugin with a daemon surface)
 
-The daemon (`niri-animation-rotate`) is bundled — nothing else to install.
+No Rust toolchain, no binary downloads, no `netcat` (optional — see Keybind Setup).
 
 ## Installation
 
@@ -43,8 +48,6 @@ The daemon (`niri-animation-rotate`) is bundled — nothing else to install.
 3. Click Install
 4. Activate the plugin — it's ready
 
-The plugin auto-starts the daemon and sets up all required config files on first activation.
-
 ### Manual
 
 ```bash
@@ -54,13 +57,41 @@ git clone https://github.com/pnbarbeito/dms-niri-animation-rotate.git \
 
 Then activate the plugin from DMS Settings → Plugins → Local.
 
+### The niri include (one-time, with your consent)
+
+Niri only applies animations through an include in its config file:
+
+```kdl
+include "dms/animation.kdl"
+```
+
+The plugin **never edits your config silently**. On first activation a card appears in
+the Control Center detail view:
+
+- **Add include** — the plugin appends exactly one line to `~/.config/niri/config.kdl`
+  (XDG-aware) and remembers your answer. Niri picks the change up automatically.
+- **Show instructions** — the plugin stays out of your config and shows you the line to
+  add yourself. It won't ask again.
+
+If the include is already there, no card is shown at all.
+
 ## Configuration
 
-Configure socket path and refresh interval from the plugin settings page (right-click the widget → Settings). All other daemon settings are managed through the widget's UI.
+Open the plugin settings page (right-click the widget → Settings) to adjust:
 
-### Keybind Setup
+- **Rotation cooldown** (`cooldown-ms`) — extra debounce on top of each animation's duration
+- **Ignore window opened / closed** — event filters for Auto mode
+- **Random order** — shuffle the rotation list
+- **Control socket path** — override; by default `<pluginDir>/control.sock`, resolved
+  through the DMS plugin directory (respects `XDG_CONFIG_HOME`)
 
-To bind keys for next/prev animation, add custom commands in DMS Settings → Keybinds:
+All other controls live in the widget UI and apply immediately.
+
+### Keybind Setup (optional)
+
+The daemon serves a Unix control socket compatible with `nrctl` and plain shell
+commands. To bind keys for next/prev animation, add custom commands in DMS
+Settings → Keybinds (requires netcat with Unix-socket support, e.g. `netcat-openbsd`):
 
 | Action | Command |
 |---|---|
@@ -68,6 +99,15 @@ To bind keys for next/prev animation, add custom commands in DMS Settings → Ke
 | Prev animation | `echo 'prev' \| nc -U <pluginDir>/control.sock` |
 
 The exact socket path is shown in the plugin settings page.
+
+## Architecture note: the upstream Rust daemon still exists
+
+This plugin used to launch a bundled build of
+[niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) (Rust).
+That binary was removed: the daemon logic is now ported to QML and runs inside DMS.
+The upstream Rust daemon remains a good **standalone alternative** if you want rotation
+outside DMS — it ships its own `nrctl` and releases, and this plugin's control socket
+speaks the same command grammar.
 
 ## Screenshots
 
@@ -101,4 +141,4 @@ Thank you all for sharing your incredible work with the Niri community!
 
 ## Related
 
-- [niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) — the Rust daemon source code and standalone releases.
+- [niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) — the upstream Rust daemon (standalone alternative) and its source code.

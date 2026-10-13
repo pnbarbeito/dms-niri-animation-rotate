@@ -1,16 +1,20 @@
 {
   "id": "animationRotate",
   "name": "Animation Rotate",
-  "description": "Control niri-animation-rotate from the Control Center: switch animations, change modes, and filter events. Daemon included — batteries included.",
+  "description": "Rotate niri window animations from the Control Center: switch presets, auto/manual rotation on window events, and cooldown debounce. Native DMS daemon — no bundled binaries.",
   "version": "1.0.0",
   "author": "pnbarbeito",
   "icon": "animation",
-  "type": "widget",
-  "component": "./AnimationRotateWidget.qml",
+  "type": "composite",
+  "components": {
+    "daemon": "./AnimationRotateDaemon.qml",
+    "widget": "./AnimationRotateWidget.qml"
+  },
   "settings": "./AnimationRotateSettings.qml",
   "capabilities": [
     "control-center",
-    "dankbar-widget"
+    "dankbar-widget",
+    "daemon"
   ],
   "category": "utilities",
   "compositors": [
@@ -22,7 +26,7 @@
   "dependencies": [
     "niri"
   ],
-  "requires_dms": ">=1.4.0",
+  "requires_dms": ">=1.5.0",
   "permissions": [
     "process",
     "settings_read",

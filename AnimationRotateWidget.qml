@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -10,263 +9,60 @@ import QtQuick.Layouts
 PluginComponent {
     id: root
 
-    // ── Settings ────────────────────────────────────────────────
-    property string pluginHome: {
-        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
-        home + "/.config/DankMaterialShell/plugins/animationRotate";
-    }
-    property string socketPath: pluginData.socketPath || pluginHome + "/control.sock"
-    property int refreshIntervalMs: pluginData.refreshIntervalMs || 2000
-
-    // ── State ───────────────────────────────────────────────────
-    property string currentAnim: "—"
-    property var animationList: []
-    property string currentMode: pluginData.currentMode || "auto"
-    property bool isLoading: false
-    property bool ignoreWindowOpened: pluginData.ignoreWindowOpened === "true"
-    property bool ignoreWindowClosed: pluginData.ignoreWindowClosed === "true"
+    // ── State (reactive bindings to the daemon surface; no polling) ────────
+    // DMS creates the daemon surface when the plugin is enabled and destroys
+    // it on disable — daemonSurface is null only for a tick during startup.
+    // `|| null` normalizes a missing map key (undefined) so daemonRunning
+    // never reports false-green while the surface doesn't exist yet.
+    readonly property var daemonSurface: ((pluginService && pluginService.pluginDaemonInstances) ? pluginService.pluginDaemonInstances[pluginId] : null) || null
+    readonly property bool daemonRunning: daemonSurface !== null
+    readonly property string currentAnim: daemonSurface ? (daemonSurface.currentAnimation || "—") : "—"
+    readonly property var animationList: daemonSurface ? daemonSurface.animationList : []
+    readonly property string currentMode: daemonSurface ? daemonSurface.mode : "auto"
+    readonly property bool ignoreWindowOpened: daemonSurface ? daemonSurface.noWindowOpened : false
+    readonly property bool ignoreWindowClosed: daemonSurface ? daemonSurface.noWindowClosed : false
     property bool showInBar: pluginData.showInBar !== "false"
-    property bool daemonRunning: false
-
-    // ── Process component for sending commands ──────────────────
-    Component {
-        id: cmdProcComponent
-        Process {
-            id: cmdProcess
-            property var _callback: null
-            property string _outputBuffer: ""
-            stdout: SplitParser {
-                onRead: function (data) {
-                    cmdProcess._outputBuffer += data + "\n";
-                }
-            }
-            onExited: {
-                var result = cmdProcess._outputBuffer.trim();
-                var cb = cmdProcess._callback;
-                if (cb)
-                    cb(result);
-                Qt.callLater(function () {
-                    cmdProcess.destroy();
-                });
-            }
-        }
-    }
-
-    // ── Process component for launching daemon (no auto-destroy) ──
-    // The daemon is backgrounded via & — auto-destroying the Process
-    // would kill the process group and take the daemon with it.
-    Component {
-        id: launchProcComponent
-        Process {
-            property var _callback: null
-            onExited: {
-                var cb = _callback;
-                if (cb) cb("");
-            }
-        }
-    }
-
-    // ── Daemon Manager (auto-start + health check) ──────────
-    QtObject {
-        id: daemon
-        property int retryAttempts: 0
-
-        function checkAndStart() {
-            // Try to reach the daemon via the socket
-            root.sendCommand("current", function (resp) {
-                if (resp !== "" && resp !== "ERR") {
-                    root.daemonRunning = true;
-                    root.fetchCurrent();
-                    root.fetchList();
-                    root.fetchStatus();
-                } else {
-                    launchDaemon();
-                }
-            });
-        }
-
-        function launchDaemon() {
-            var bin = root.pluginHome + "/bin/niri-animation-rotate";
-            var animDir = root.pluginHome + "/animations";
-            var configFile = root.pluginHome + "/config.kdl";
-            var sock = expandPath(root.socketPath);
-            var niriDmsDir = expandPath("~/.config/niri/dms");
-            var animTarget = niriDmsDir + "/animation.kdl";
-            var niriConfig = expandPath("~/.config/niri/config.kdl");
-            var includeLine = 'include "dms/animation.kdl"';
-
-            // Setup + launch (all with ; not && to avoid chain break on non-critical failures)
-            var setupCmd = "chmod +x '" + bin + "'; " +
-                "mkdir -p '" + niriDmsDir + "'; " +
-                "grep -qF '" + includeLine + "' '" + niriConfig + "' 2>/dev/null || echo '" + includeLine + "' >> '" + niriConfig + "'; " +
-                "rm -f '" + sock + "'; " +
-                // Create config.kdl with paths if it doesn't exist (daemon will append settings here)
-                "test -f '" + configFile + "' || printf 'animation-dir \"%s\"\\nanimation-target \"%s\"\\n' '" + animDir + "' '" + animTarget + "' > '" + configFile + "'; " +
-                "'" + bin + "'" +
-                " --config='" + configFile + "'" +
-                " --animation-dir='" + animDir + "'" +
-                " --animation-target='" + animTarget + "'" +
-                " --control-socket='" + sock + "'" +
-                " </dev/null >/dev/null 2>&1 &";
-
-            var proc = launchProcComponent.createObject(root, {
-                "command": ["sh", "-c", setupCmd],
-                "_callback": function(result) { retryAttempts = 0; retryConnect(); },
-                "running": true
-            });
-        }
-
-        function retryConnect() {
-            if (retryAttempts >= 10) return; // Give up after ~5s
-            root.sendCommand("current", function (resp) {
-                if (resp !== "" && resp !== "ERR") {
-                    root.daemonRunning = true;
-                    root.fetchCurrent();
-                    root.fetchList();
-                    root.fetchStatus();
-                } else {
-                    retryAttempts += 1;
-                    retryTimer.restart();
-                }
-            });
-        }
-
-        function restartDaemon() {
-            root.daemonRunning = false;
-            retryAttempts = 0;
-            retryTimer.stop();
-            // Remove stale socket so the new daemon can bind, then launch.
-            // Old daemon becomes orphaned (no clients on the deleted socket).
-            var proc = cmdProcComponent.createObject(root, {
-                "command": ["sh", "-c", "rm -f '" + expandPath(root.socketPath) + "'"],
-                "_callback": function() { launchDaemon(); },
-                "running": true
-            });
-        }
-    }
-
-    // Timer for retrying daemon connection after launch
-    Timer {
-        id: retryTimer
-        interval: 500
-        repeat: false
-        onTriggered: {
-            if (daemon.retryAttempts < 10) {
-                daemon.retryConnect();
-            }
-        }
-    }
-
-    // ── Helpers ─────────────────────────────────────────────────
-    function expandPath(path) {
-        var home = Quickshell.env("HOME") || "/home/" + Quickshell.env("USER");
-        return path.replace(/^~/, home);
-    }
-
-    function sendCommand(cmd, callback) {
-        var escapedCmd = cmd.replace(/'/g, "'\\''");
-        var sockPath = expandPath(root.socketPath);
-        cmdProcComponent.createObject(root, {
-            "command": ["sh", "-c", "echo '" + escapedCmd + "' | nc -w 1 -U " + sockPath + " 2>/dev/null || echo 'ERR'"],
-            "_callback": callback,
-            "running": true
-        });
-    }
-
-    function fetchCurrent(silent) {
-        sendCommand("current", function (resp) {
-            if (resp !== "" && resp !== "ERR")
-                root.currentAnim = resp;
-            if (!silent)
-                root.isLoading = false;
-        });
-    }
-
-    function fetchList() {
-        sendCommand("list", function (resp) {
-            if (resp !== "" && resp !== "ERR")
-                root.animationList = resp.split('\n').filter(function (l) {
-                    return l.trim() !== "";
-                });
-        });
-    }
-
-    function fetchStatus() {
-        sendCommand("status", function (resp) {
-            if (resp !== "" && resp !== "ERR") {
-                var lines = resp.split('\n');
-                for (var i = 0; i < lines.length; i++) {
-                    var parts = lines[i].split(': ');
-                    if (parts.length === 2) {
-                        if (parts[0] === "no-window-opened")
-                            root.ignoreWindowOpened = parts[1] === "true";
-                        else if (parts[0] === "no-window-closed")
-                            root.ignoreWindowClosed = parts[1] === "true";
-                    }
-                }
-            }
-        });
-    }
+    // Local UI state for the niri-include card's "Show instructions" path.
+    property bool showIncludeInstructions: false
+    onDaemonSurfaceChanged: console.info("AnimationRotateWidget: daemon surface", daemonSurface ? "attached" : "detached")
 
     function doNext() {
-        root.isLoading = true;
-        sendCommand("next", function (r) {
-            root.fetchCurrent(false);
-        });
+        if (daemonSurface)
+            daemonSurface.rotateNext();
     }
+
     function doPrev() {
-        root.isLoading = true;
-        sendCommand("prev", function (r) {
-            root.fetchCurrent(false);
-        });
+        if (daemonSurface)
+            daemonSurface.rotatePrev();
     }
 
     function doSelect(name) {
-        sendCommand("select " + name, function (resp) {
-            if (resp === "ok")
-                root.currentAnim = name;
-        });
+        if (daemonSurface)
+            daemonSurface.selectAnimation(name);
     }
 
     function doSetMode(mode) {
-        sendCommand("mode " + mode, function (resp) {
-            if (resp === "ok") {
-                root.currentMode = mode;
-                if (root.pluginService)
-                    root.pluginService.savePluginData(root.pluginId, "currentMode", mode);
-            }
-        });
+        if (daemonSurface)
+            daemonSurface.setMode(mode);
     }
 
     function toggleWindowOpened() {
-        var newVal = !root.ignoreWindowOpened;
-        root.ignoreWindowOpened = newVal;
-        sendCommand("set no-window-opened " + (newVal ? "true" : "false"));
-        if (root.pluginService)
-            root.pluginService.savePluginData(root.pluginId, "ignoreWindowOpened", newVal ? "true" : "false");
+        if (daemonSurface)
+            daemonSurface.command("set no-window-opened " + (!ignoreWindowOpened ? "true" : "false"));
     }
 
     function toggleWindowClosed() {
-        var newVal = !root.ignoreWindowClosed;
-        root.ignoreWindowClosed = newVal;
-        sendCommand("set no-window-closed " + (newVal ? "true" : "false"));
-        if (root.pluginService)
-            root.pluginService.savePluginData(root.pluginId, "ignoreWindowClosed", newVal ? "true" : "false");
+        if (daemonSurface)
+            daemonSurface.command("set no-window-closed " + (!ignoreWindowClosed ? "true" : "false"));
     }
 
-    // ── Periodic refresh ──────────────────────────────────────
-    Timer {
-        id: refreshTimer
-        interval: root.refreshIntervalMs
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: root.fetchCurrent(true)
+    function restartDaemon() {
+        // Rescans presets and re-reads settings; the daemon surface itself is
+        // owned by DMS (no process to restart).
+        if (daemonSurface)
+            daemonSurface.restart();
     }
 
-    Component.onCompleted: {
-        daemon.checkAndStart();
-    }
 
     // ── Control Center Widget Properties ─────────────────────
     ccWidgetIcon: "animation"
@@ -359,13 +155,82 @@ PluginComponent {
                             height: 12
                             radius: 6
                             anchors.verticalCenter: parent.verticalCenter
-                            color: root.daemonRunning ? "#4CAF50" : "#F44336"
+                            color: root.daemonRunning ? Theme.success : Theme.error
                         }
                         StyledText {
                             text: root.daemonRunning ? "active" : "offline"
                             font.pixelSize: Theme.fontSizeSmall
-                            color: root.daemonRunning ? "#4CAF50" : "#F44336"
+                            color: root.daemonRunning ? Theme.success : Theme.error
                             anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    // ── Niri include consent card ────────────
+                    // Shown only while the include is missing AND unanswered.
+                    // After "Show instructions" the card stays for this session
+                    // (consent persisted → never asked again on next start).
+                    StyledRect {
+                        // Hide once the include exists (even if instructions
+                        // are open for the session).
+                        visible: root.daemonSurface && (root.daemonSurface.niriIncludeActionNeeded || (root.showIncludeInstructions && !root.daemonSurface.niriIncludePresent))
+                        width: parent.width
+                        height: includeCardCol.implicitHeight + Theme.spacingM * 2
+                        radius: Theme.cornerRadius
+                        color: Theme.surfaceContainerHighest
+
+                        Column {
+                            id: includeCardCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.margins: Theme.spacingM
+                            spacing: Theme.spacingS
+
+                            StyledText {
+                                text: "Niri config include"
+                                font.weight: Font.Bold
+                                color: Theme.surfaceText
+                            }
+                            StyledText {
+                                width: parent.width
+                                text: "Animations are applied through \"dms/animation.kdl\" in your niri config. It isn't included yet."
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.surfaceText
+                                wrapMode: Text.Wrap
+                                visible: !root.showIncludeInstructions
+                            }
+                            StyledText {
+                                width: parent.width
+                                text: root.daemonSurface ? "Add this line to " + root.daemonSurface.niriConfigPath + " and save — niri reloads it automatically:\n\ninclude \"dms/animation.kdl\"" : ""
+                                font.pixelSize: Theme.fontSizeSmall
+                                color: Theme.surfaceText
+                                wrapMode: Text.Wrap
+                                visible: root.showIncludeInstructions
+                            }
+
+                            Row {
+                                spacing: Theme.spacingS
+
+                                DankButton {
+                                    text: "Add include"
+                                    height: 32
+                                    enabled: root.daemonSurface && !root.daemonSurface._includeWritePending
+                                    onClicked: {
+                                        if (root.daemonSurface)
+                                            root.daemonSurface.acceptNiriInclude();
+                                    }
+                                }
+                                DankButton {
+                                    text: "Show instructions"
+                                    height: 32
+                                    visible: !root.showIncludeInstructions
+                                    onClicked: {
+                                        root.showIncludeInstructions = true;
+                                        if (root.daemonSurface)
+                                            root.daemonSurface.dismissNiriInclude();
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -385,12 +250,12 @@ PluginComponent {
                                 text: "‹"
                                 implicitWidth: 36
                                 implicitHeight: 36
-                                enabled: !root.isLoading
+                                enabled: root.daemonRunning
                                 onClicked: root.doPrev()
                             }
 
                             StyledText {
-                                text: root.isLoading ? "…" : root.currentAnim
+                                text: root.currentAnim
                                 font.weight: Font.Bold
                                 color: Theme.surfaceText
                                 Layout.fillWidth: true
@@ -403,7 +268,7 @@ PluginComponent {
                                 text: "›"
                                 implicitWidth: 36
                                 implicitHeight: 36
-                                enabled: !root.isLoading
+                                enabled: root.daemonRunning
                                 onClicked: root.doNext()
                             }
                         }
@@ -676,13 +541,14 @@ PluginComponent {
                         }
                     }
 
-                    // ── Restart Daemon ────────────────────────
+                    // ── Restart (rescan presets / reload settings) ──
                     DankButton {
-                        text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
+                        text: "Restart Daemon"
                         width: parent.width
                         height: 36
-                        iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
-                        onClicked: daemon.restartDaemon()
+                        iconName: "restart_alt"
+                        enabled: root.daemonRunning
+                        onClicked: root.restartDaemon()
                     }
                 }
             }
@@ -731,12 +597,12 @@ PluginComponent {
                                         text: "‹"
                                         implicitWidth: 50
                                         implicitHeight: 36
-                                        enabled: !root.isLoading
+                                        enabled: root.daemonRunning
                                         onClicked: root.doPrev()
                                     }
 
                                     StyledText {
-                                        text: root.isLoading ? "…" : root.currentAnim
+                                        text: root.currentAnim
                                         font.weight: Font.Bold
                                         color: Theme.surfaceText
                                         Layout.fillWidth: true
@@ -749,7 +615,7 @@ PluginComponent {
                                         text: "›"
                                         implicitWidth: 50
                                         implicitHeight: 36
-                                        enabled: !root.isLoading
+                                        enabled: root.daemonRunning
                                         onClicked: root.doNext()
                                     }
                                 }
@@ -1019,25 +885,15 @@ PluginComponent {
                                 }
                             }
 
-                            // Refresh button
+                            // Restart (rescan presets / reload settings) —
+                            // no Refresh button: all state is reactive now.
                             DankButton {
-                                text: "Refresh"
+                                text: "Restart Daemon"
                                 width: parent.width
                                 height: 36
-                                iconName: "refresh"
-                                onClicked: {
-                                    root.fetchCurrent();
-                                    root.fetchList();
-                                }
-                            }
-
-                            // Restart Daemon button
-                            DankButton {
-                                text: root.daemonRunning ? "Restart Daemon" : "Start Daemon"
-                                width: parent.width
-                                height: 36
-                                iconName: root.daemonRunning ? "restart_alt" : "play_arrow"
-                                onClicked: daemon.restartDaemon()
+                                iconName: "restart_alt"
+                                enabled: root.daemonRunning
+                                onClicked: root.restartDaemon()
                             }
                         }
                     }
