@@ -36,8 +36,7 @@ Everything runs inside DMS as QML: the daemon is a *daemon surface* of the plugi
 
 - [Niri](https://github.com/YaLTeR/niri) compositor
 - Dank Material Shell >= 1.5.0 (native `composite` plugin with a daemon surface)
-
-No Rust toolchain, no binary downloads, no `netcat` (optional — see Keybind Setup).
+- netcat (optional — see Keybind Setup).
 
 ## Installation
 
@@ -100,15 +99,6 @@ Settings → Keybinds (requires netcat with Unix-socket support, e.g. `netcat-op
 
 The exact socket path is shown in the plugin settings page.
 
-## Architecture note: the upstream Rust daemon still exists
-
-This plugin used to launch a bundled build of
-[niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) (Rust).
-That binary was removed: the daemon logic is now ported to QML and runs inside DMS.
-The upstream Rust daemon remains a good **standalone alternative** if you want rotation
-outside DMS — it ships its own `nrctl` and releases, and this plugin's control socket
-speaks the same command grammar.
-
 ## Screenshots
 
 ![Animation Rotate](./screenshots/widget.png)
@@ -136,7 +126,3 @@ The 49 animation presets bundled with this plugin are **not my own work**. They 
   Sources: [liixini/shaders](https://github.com/liixini/shaders)
 
 Thank you all for sharing your incredible work with the Niri community!
-
-## Related
-
-- [niri-animation-rotate](https://github.com/pnbarbeito/niri-animation-rotate) — the upstream Rust daemon (standalone alternative) and its source code.
