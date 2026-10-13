@@ -114,9 +114,7 @@ este plugin habla la misma gramática de comandos.
 
 ## Capturas de pantalla
 
-<!-- TODO: agregar capturas -->
-<!-- ![Centro de Control](./screenshots/control-center.png) -->
-<!-- ![Panel flotante](./screenshots/popout.png) -->
+![Animation Rotate](./screenshots/widget.png)
 
 ## Licencia
 

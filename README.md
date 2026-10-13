@@ -111,9 +111,7 @@ speaks the same command grammar.
 
 ## Screenshots
 
-<!-- TODO: add screenshots -->
-<!-- ![Control Center](./screenshots/control-center.png) -->
-<!-- ![Popout Widget](./screenshots/popout.png) -->
+![Animation Rotate](./screenshots/widget.png)
 
 ## License
 
