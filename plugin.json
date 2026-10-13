@@ -2,7 +2,7 @@
   "id": "animationRotate",
   "name": "Animation Rotate",
   "description": "Rotate niri window animations from the Control Center: switch presets, auto/manual rotation on window events, and cooldown debounce. Native DMS daemon — no bundled binaries.",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "pnbarbeito",
   "icon": "animation",
   "type": "composite",
